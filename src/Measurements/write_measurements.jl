@@ -34,6 +34,17 @@ function write_measurements!(LessIO::Bool;
     update::Int = 0,
     bin::Int = update ÷ bin_size,
 ) where {D, E<:AbstractFloat, N}
+    if !LessIO
+        return write_measurements!(
+            measurement_container=measurement_container,
+            simulation_info=simulation_info,
+            model_geometry=model_geometry,
+            Δτ=Δτ,
+            bin_size=bin_size,
+            update=update,
+            bin=bin
+        )
+    end
 
     # check if bin file needs to be written
     if update % bin_size == 0

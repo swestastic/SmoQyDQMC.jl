@@ -31,6 +31,7 @@ Note that using `pIDs` argument you can filter which MPI walker to use when calc
 # Use for LessIO mode
 function process_measurements(
     # ARGUMENTS
+    LessIO::Bool,
     folder::String,
     N_bins::Int,
     β::Float64,
@@ -41,6 +42,13 @@ function process_measurements(
     # KEYWORD ARGUMENTS
     time_displaced::Bool = false
 )
+    if !LessIO
+        return process_measurements(folder, 
+            N_bins, 
+            pIDs;
+            time_displaced = time_displaced
+        )
+    end
 
     # set the walkers to iterate over
     if isempty(pIDs)
