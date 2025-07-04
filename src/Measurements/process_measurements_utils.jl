@@ -79,6 +79,31 @@ function get_num_walkers(folder::String)
     return N_process
 end
 
+# Use for LessIO mode
+# calculate the file intervals for each bin
+function get_bin_intervals(N_bins::Int, pID::Int = 0)
+
+    # read in binnary data files for specified pID
+    # ending = @sprintf("*_pID-%d.jld2", pID)
+    # directory = joinpath(folder, "global")
+    # files = glob(ending, directory)
+
+    # manually set N_files = N_bins, which should be the case normally
+    N_files = N_bins
+
+    # calculate the size of each bin
+    N_binsize = div(N_files, N_bins)
+    @assert N_files == (N_bins * N_binsize) "[N_files = $N_files] = ([N_bins = $N_bins] * [N_binsize = $N_binsize])"
+
+    # calculate the file interval associated with each bin
+    bin_intervals = UnitRange{Int}[]
+    for n_bin in 1:N_bins
+        bin_interval = (n_bin-1)*N_binsize+1 : n_bin*N_binsize
+        push!(bin_intervals, bin_interval)
+    end
+
+    return bin_intervals
+end
 
 # calculate the file intervals for each bin
 function get_bin_intervals(folder::String, N_bins::Int, pID::Int = 0)
@@ -105,6 +130,39 @@ function get_bin_intervals(folder::String, N_bins::Int, pID::Int = 0)
     return bin_intervals
 end
 
+# Use for LessIO mode
+# calculate the average sign for each bin for a specified pID walker
+function get_average_sign(bin_intervals::Vector{UnitRange{Int}}, pID::Int, measurement_array::Vector{NamedTuple})
+
+    sample_sign = measurement_array[1].global_measurements["sgn"]
+
+    # get the data type for the sgn data
+    T = typeof(sample_sign)
+
+    # allocate array to hold binned sign data
+    sgn = zeros(T, length(bin_intervals))
+
+    # get the bin size
+    N_binsize = length(bin_intervals[1])
+
+    # get number of bins
+    N_bins = length(bin_intervals)
+
+    # iterate over bins
+    for bin in 1:N_bins
+
+        # iterate overs files in bin
+        for i in bin_intervals[bin]
+            # load sign from binary data
+            sgn[bin] += measurement_array[i].global_measurements["sgn"]
+        end
+
+        # normalize binned sign by bin size
+        sgn[bin] /= N_binsize
+    end
+
+    return sgn
+end
 
 # calculate the average sign for each bin for a specified pID walker
 function get_average_sign(folder::String, bin_intervals::Vector{UnitRange{Int}}, pID::Int)
