@@ -104,6 +104,14 @@ If you found this library to be useful in the course of academic work, please co
  publisher={SciPost},
  doi={10.21468/SciPostPhysCodeb.29},
  url={https://scipost.org/10.21468/SciPostPhysCodeb.29},
+ title={{SmoQyDQMC.jl: A flexible implementation of determinant quantum Monte Carlo for Hubbard and electron-phonon interactions}},
+ author={Benjamin Cohen-Stead and Sohan Malkaruge Costa and James Neuhaus and Andy Tanjaroon Ly and Yutan Zhang and Richard Scalettar and Kipton Barros and Steven Johnston},
+ journal={SciPost Phys. Codebases},
+ pages={29},
+ year={2024},
+ publisher={SciPost},
+ doi={10.21468/SciPostPhysCodeb.29},
+ url={https://scipost.org/10.21468/SciPostPhysCodeb.29},
 }
 ```
 
