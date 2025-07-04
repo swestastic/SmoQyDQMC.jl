@@ -49,6 +49,74 @@ function process_correlation_measurements(
     return nothing
 end
 
+# Use for LessIO mode
+# process correlations measurements averaging over all MPI walkers
+function _process_correlation_measurements(
+    folder::String,
+    N_bins::Int,
+    pIDs::Vector{Int},
+    types::Vector{String},
+    spaces::Vector{String},
+    Lτ::Int,
+    model_geometry::ModelGeometry{D,T,N},
+    measurement_array::Vector{NamedTuple}
+) where {D, T<:AbstractFloat, N}
+
+    # calculate bin intervals
+    bin_intervals = get_bin_intervals(N_bins, pIDs[1])
+
+    # get binned sign for each pID
+    binned_sign = get_average_sign(bin_intervals, pIDs[1], measurement_array)
+    binned_signs = [binned_sign]
+    for pID in pIDs[2:end]
+        push!(binned_signs, get_average_sign(bin_intervals, pID, measurement_array))
+    end
+
+    # iterate over types of correlation measurements to process
+    for type in types
+
+        # get the name of each correlation measurement that was made
+        correlation_folder = joinpath(folder, type)
+
+        # get the names of each correlation
+        correlations = filter(i -> isdir(joinpath(correlation_folder,i)), readdir(correlation_folder))
+
+        # iterate over correlations
+        for correlation in correlations
+
+            # iterate over relevant spaces
+            for space in spaces
+
+                # process correlation measurement
+                if type == "time-displaced"
+                    if haskey(CORRELATION_FUNCTIONS, correlation)
+                        _process_correlation_measurement(
+                            folder, correlation, space, pIDs, bin_intervals, binned_signs, model_geometry, Lτ, false
+                        )
+                    else
+                        _process_composite_correlation_measurement(
+                            folder, correlation, space, pIDs, bin_intervals, binned_signs, model_geometry, Lτ, false
+                        )
+                    end
+                else
+                    if haskey(CORRELATION_FUNCTIONS, correlation)
+                        _process_correlation_measurement(
+                            folder, correlation, type, space, pIDs, bin_intervals, binned_signs, model_geometry, false
+                        )
+                    else
+                        _process_composite_correlation_measurement(
+                            folder, correlation, type, space, pIDs, bin_intervals, binned_signs, model_geometry, false
+                        )
+                    end
+                end
+            end
+        end
+    end
+
+    return nothing
+end
+
+
 # prcoess correlations measurements averaging over all MPI walkers
 function _process_correlation_measurements(
     folder::String,

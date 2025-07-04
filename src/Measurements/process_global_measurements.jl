@@ -88,6 +88,64 @@ function process_global_measurements(
     return nothing
 end
 
+# Use for LessIO mode
+# process global measurements over multiple walkers
+function _process_global_measurements(
+    folder::String,
+    N_bins::Int,
+    pIDs::Vector{Int},
+    β::T,
+    N_sites::Int,
+    measurement_array::Vector{NamedTuple}
+) where {T<:AbstractFloat}
+
+    # calculate bin intervals
+    bin_intervals = get_bin_intervals(N_bins, pIDs[1])
+
+    # read in binned global measurements for first pID
+    binned_gloabl_measurements = read_global_measurements(bin_intervals, measurement_array)
+
+    # calculate global measurements stats
+    global_measurements_avg, global_measurements_std = analyze_global_measurements(binned_gloabl_measurements, β, N_sites)
+
+    # convert standard deviations to variance
+    global_measurements_var = global_measurements_std
+    for key in keys(global_measurements_std)
+        global_measurements_var[key] = abs2(global_measurements_std[key])
+    end
+
+    # iterate over remaining MPI walker results
+    for pID in pIDs[2:end]
+
+        # read in binned global measurements for current pID
+        binned_gloabl_measurements = read_global_measurements(bin_intervals, measurement_array)
+
+        # calculate global measurements stats
+        walker_global_measurements_avg, walker_global_measurements_std = analyze_global_measurements(binned_gloabl_measurements, β, N_sites)
+
+        # iterate over measurements
+        for key in keys(global_measurements_avg)
+
+            # record measurement average
+            global_measurements_avg[key] += walker_global_measurements_avg[key]
+
+            # record measurement variance
+            global_measurements_var[key] += abs2(walker_global_measurements_std[key])
+        end
+    end
+
+    # calculate average for each measurement across all walkers and final standard deviation with errors properly propagated
+    for key in keys(global_measurements_avg)
+        global_measurements_avg[key] /= length(pIDs)
+        global_measurements_std[key]  = sqrt(global_measurements_var[key]) / length(pIDs)
+    end
+
+    # write the final global measurement stat to file
+    write_global_measurements(folder, global_measurements_avg, global_measurements_std)
+
+    return nothing
+end
+
 # process global measurements over multiple walkers
 function _process_global_measurements(
     folder::String,
@@ -206,7 +264,7 @@ end
 
 # process global measurements for single MPI walker
 function _process_global_measurements(folder::String, N_bins::Int, pID::Int, β::T, N_sites::Int) where {T<:AbstractFloat}
-
+    
     # calculate bin intervals
     bin_intervals = get_bin_intervals(folder, N_bins, pID)
 
@@ -222,6 +280,43 @@ function _process_global_measurements(folder::String, N_bins::Int, pID::Int, β:
     return nothing
 end
 
+# Use for LessIO mode
+# read in and bin the global measurements for single MPI walker given by pID
+function read_global_measurements(
+    bin_intervals::Vector{UnitRange{Int}},
+    measurement_array::Vector{NamedTuple}
+)
+
+    global_measurements = measurement_array[1].global_measurements
+
+    # get data type of global measurements
+    T = typeof(global_measurements["sgn"])
+
+    # number of bins
+    N_bins = length(bin_intervals)
+
+    # size of each bin
+    N_binsize = length(bin_intervals[1])
+
+    # initiailize contained for binned global measuremenets
+    binned_global_measurements = Dict(key => zeros(T, N_bins) for key in keys(global_measurements))
+
+    # iterate over bins
+    for bin in 1:N_bins
+
+        # load global measurement
+        global_measurements = measurement_array[bin].global_measurements
+
+        # iterate over global measurements
+        for key in keys(global_measurements)
+
+            # record measurement
+            binned_global_measurements[key][bin] += global_measurements[key] / N_binsize
+        end
+    end
+
+    return binned_global_measurements
+end
 
 # read in and bin the global measurements for single MPI walker given by pID
 function read_global_measurements(
@@ -321,8 +416,8 @@ end
 
 
 # write global measurement data to file averaged across all walkers
-function write_global_measurements(folder::String, global_measurements_avg, global_measurements_std)
-
+function write_global_measurements(folder::String, global_measurements_avg, global_measurements_std) 
+    
     open(joinpath(folder,"global_stats.csv"), "w") do fout
         _write_global_measurements(fout, global_measurements_avg, global_measurements_std)
     end

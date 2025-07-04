@@ -28,6 +28,52 @@ The boolean flag `time_displaced` determines whether or not to calculate error b
 as this can take a non-negligible amount of time for large system, especially when many simulations were run in parallel.
 Note that using `pIDs` argument you can filter which MPI walker to use when calculting the statistics.
 """
+# Use for LessIO mode
+function process_measurements(
+    # ARGUMENTS
+    folder::String,
+    N_bins::Int,
+    β::Float64,
+    Lτ::Int,
+    model_geometry::ModelGeometry,
+    measurement_array::Vector{NamedTuple},
+    pIDs::Union{Vector{Int},Int} = Int[];
+    # KEYWORD ARGUMENTS
+    time_displaced::Bool = false
+)
+
+    # set the walkers to iterate over
+    if isempty(pIDs)
+
+        # get the number of MPI walkers
+        N_walkers = get_num_walkers(folder)
+        if N_walkers == 0 # since we no longer have bin files, assume there is only one walker
+            pIDs = [0]
+        else
+            # get the pIDs
+            pIDs = collect(0:(N_walkers-1))
+        end
+    end
+
+    # number of sites in lattice
+    N_sites = nsites(model_geometry.unit_cell, model_geometry.lattice)
+
+    # process global measurements
+    _process_global_measurements(folder, N_bins, pIDs, β, N_sites, measurement_array)
+
+    # process local measurement
+    _process_local_measurements(folder, N_bins, pIDs, measurement_array)
+
+    # process correlation measurement
+    if time_displaced
+        _process_correlation_measurements(folder, N_bins, pIDs, ["equal-time", "time-displaced", "integrated"], ["position", "momentum"], Lτ, model_geometry, measurement_array)
+    else
+        _process_correlation_measurements(folder, N_bins, pIDs, ["equal-time", "integrated"], ["position", "momentum"], Lτ, model_geometry, measurement_array)
+    end
+
+    return nothing
+end
+
 function process_measurements(
     # ARGUMENTS
     folder::String,

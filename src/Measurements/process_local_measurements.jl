@@ -78,6 +78,58 @@ function process_local_measurements(
     return nothing
 end
 
+# Use for LessIO mode
+# process local measurements averaged across multiple walkers
+function _process_local_measurements(folder::String, N_bins::Int, pIDs::Vector{Int}, measurement_array::Vector{NamedTuple})
+
+    # calculate bin intervals
+    bin_intervals = get_bin_intervals(N_bins, pIDs[1])
+
+    # get binned sign
+    binned_sign = get_average_sign(bin_intervals, pIDs[1], measurement_array)
+
+    # read in binned local measurements for first pID
+    binned_local_measurements = read_local_measurements(pIDs[1], bin_intervals, measurement_array)
+    
+    # calculate local measurements stats
+    local_measurements_avg, local_measurements_var = analyze_local_measurements(binned_local_measurements, binned_sign)
+
+    # iterate over remaining mpi walkers
+    for pID in pIDs[2:end]
+
+        # read in binned local measurements for current pID
+        binned_local_measurements = read_local_measurements(pID, bin_intervals, measurement_array)
+
+        # get binned sign
+        binned_sign = get_average_sign(bin_intervals, pID, measurement_array)
+
+        # calculate local measurements stats
+        walker_local_measurements_avg, walker_local_measurements_var = analyze_local_measurements(binned_local_measurements, binned_sign)
+
+        # iterate over measurements
+        for key in keys(local_measurements_avg)
+
+            # record measurement average
+            @. local_measurements_avg[key] += walker_local_measurements_avg[key]
+
+            # record measurement variance
+            @. local_measurements_var[key] += walker_local_measurements_var[key]
+        end
+    end
+
+    # calculate average for each measurement across all walkers and final standard deviation with errors properly propagated
+    local_measurements_std = local_measurements_var
+    for key in keys(local_measurements_avg)
+        N_id = length(pIDs)
+        @. local_measurements_avg[key] /= N_id
+        @. local_measurements_std[key]  = sqrt(local_measurements_var[key]) / N_id
+    end
+
+    # write the final local measurement stat to file
+    write_local_measurements(folder, local_measurements_avg, local_measurements_std)
+
+    return nothing
+end
 
 # process local measurements averaged across multiple walkers
 function _process_local_measurements(folder::String, N_bins::Int, pIDs::Vector{Int})
@@ -202,10 +254,48 @@ function _process_local_measurements(folder::String, N_bins::Int, pID::Int)
     return nothing
 end
 
+# Use for LessIO mode
+# read in and bin the local measurements for single MPI walker given by pID
+function read_local_measurements(pID::Int, bin_intervals::Vector{UnitRange{Int}}, measurement_array::Vector{NamedTuple})
+    # number of bins
+    N_bins = length(bin_intervals)
+
+    # bin size
+    N_binsize = length(bin_intervals[1])
+
+    # read in sample local measurement
+    local_measurements = measurement_array[1].local_measurements
+
+    # get data type
+    T = eltype(local_measurements["density"])
+
+    # initialize binned local measurements folder
+    binned_local_measurements = Dict{String, Matrix{T}}()
+    for key in keys(local_measurements)
+        n = length(local_measurements[key])
+        binned_local_measurements[key] = zeros(T, N_bins, n)
+    end
+
+    # iterate over bins
+    for bin in 1:N_bins
+
+        # load local measurements
+        local_measurements = measurement_array[bin].local_measurements
+
+        # iterate over local measurements
+        for key in keys(local_measurements)
+
+            # record local measurement
+            @views @. binned_local_measurements[key][bin,:] +=  local_measurements[key] / N_binsize
+        end
+    end
+
+    return binned_local_measurements
+end
 
 # read in and bin the local measurements for single MPI walker given by pID
 function read_local_measurements(folder::String, pID::Int, bin_intervals::Vector{UnitRange{Int}})
-    
+
     # number of bins
     N_bins = length(bin_intervals)
 
