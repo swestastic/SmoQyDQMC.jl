@@ -74,12 +74,37 @@ function _process_correlation_measurements(
 
     # iterate over types of correlation measurements to process
     for type in types
+        
+        if type == "equal-time"
+            
+            correlations = collect(keys(measurement_array[1].equaltime_correlations))
+            correlation_array = Vector{Dict}(undef, length(measurement_array)) # could probably swap length(measurement_array) for N_bins?
+            
+            for i in 1:length(correlation_array)
+                
+                correlation_array[i] = deepcopy(measurement_array[i].equaltime_correlations)
+            end  
 
-        # get the name of each correlation measurement that was made
-        correlation_folder = joinpath(folder, type)
+        elseif type == "integrated"
 
-        # get the names of each correlation
-        correlations = filter(i -> isdir(joinpath(correlation_folder,i)), readdir(correlation_folder))
+            correlations = collect(keys(measurement_array[1].integrated_correlations))
+            correlation_array = Vector{Dict}(undef, length(measurement_array))
+            
+            for i in 1:length(correlation_array)
+                
+                correlation_array[i] = deepcopy(measurement_array[i].integrated_correlations)
+            end
+
+        elseif type == "time-displaced"
+            
+            correlations = collect(keys(measurement_array[1].time_displaced_correlations))
+            correlation_array = Vector{Dict}(undef, length(measurement_array))
+            
+            for i in 1:length(correlation_array)
+                
+                correlation_array[i] = deepcopy(measurement_array[i].time_displaced_correlations)
+            end
+        end
 
         # iterate over correlations
         for correlation in correlations
@@ -101,7 +126,7 @@ function _process_correlation_measurements(
                 else
                     if haskey(CORRELATION_FUNCTIONS, correlation)
                         _process_correlation_measurement(
-                            folder, correlation, type, space, pIDs, bin_intervals, binned_signs, model_geometry, false
+                            folder, correlation, type, space, pIDs, bin_intervals, binned_signs, model_geometry, false, correlation_array
                         )
                     else
                         _process_composite_correlation_measurement(
@@ -565,6 +590,102 @@ function _process_composite_correlation_measurement(
     return nothing
 end
 
+# Use for LessIO mode
+# process equal-time or integrated correlation
+function _process_correlation_measurement(
+    folder::String,
+    correlation::String,
+    type::String,
+    space::String,
+    pIDs::Vector{Int},
+    bin_intervals::Vector{UnitRange{Int}},
+    binned_signs::Vector{Vector{Complex{T}}},
+    model_geometry::ModelGeometry{D,T,N},
+    single_pID::Bool,
+    correlation_array::Vector{Dict}
+) where {D, T<:AbstractFloat, N}
+
+    # get the folder the stats will be written to
+    write_folder = joinpath(folder, type, correlation)
+
+    # # get the read folders
+    # read_folder = joinpath(write_folder, space)
+
+    # get size of lattice
+    lattice = model_geometry.lattice::Lattice{D}
+    L = lattice.L
+
+    # number of bins
+    N_bins = length(bin_intervals)
+
+    # correlation container for stats
+    binned_correlation = zeros(Complex{T}, N_bins, L...)
+    correlation_avg = zeros(Complex{T}, L...)
+    correlation_std = zeros(T, L...)
+    correlation_var = correlation_std
+
+    # pre-allocate arrays for jackknife
+    jackknife_samples = (zeros(Complex{T}, N_bins), zeros(Complex{T}, N_bins))
+    jackknife_g = zeros(Complex{T}, N_bins)
+
+    # get correlation ID pairs
+    pairs = correlation_array[1][correlation].id_pairs
+
+    # stats filename
+    if single_pID
+        filename = @sprintf("%s_%s_%s_pID-%d_stats.csv", correlation, space, type, pIDs[1])
+    else
+        filename = @sprintf("%s_%s_%s_stats.csv", correlation, space, type)
+    end
+
+    # open stats files
+    open(joinpath(write_folder, filename), "w") do fout
+        # get the id type
+        id_type = CORRELATION_FUNCTIONS[correlation]
+
+        # write header to file
+        if space == "position"
+            write(fout, join(("INDEX", "$(id_type)_2", "$(id_type)_1", ("R_$d" for d in D:-1:1)..., "MEAN_R", "MEAN_I", "STD\n"), " "))
+        else
+            write(fout, join(("INDEX", "$(id_type)_2", "$(id_type)_1", ("K_$d" for d in D:-1:1)..., "MEAN_R", "MEAN_I", "STD\n"), " "))
+        end
+
+        # initialize index to zero
+        index = 0
+
+        # iterate over ID pairs
+        for n in eachindex(pairs)
+
+            # reset correlation containers
+            fill!(correlation_avg, 0)
+            fill!(correlation_std, 0)
+
+            # iterate over walkers
+            for i in eachindex(pIDs)
+
+                # get the pID
+                pID = pIDs[i]
+
+                # read in binned correlation data
+                read_correlation_measurement!(binned_correlation, folder, correlation, type, space, n, pID, bin_intervals, correlation_array)
+
+                # calculate average and error for current pID
+                analyze_correlations!(correlation_avg, correlation_var, binned_correlation, binned_signs[i], jackknife_samples, jackknife_g)
+            end
+
+            # normalize stats
+            N_walkers = length(pIDs)
+            @. correlation_avg /= N_walkers
+            @. correlation_std  = sqrt(correlation_var) / N_walkers
+
+            # write the correlation stats to file
+            index = write_correlation(fout, pairs[n], index, correlation_avg, correlation_std)
+        end
+    end
+
+    return nothing
+end
+
 # process equal-time or integrated correlation
 function _process_correlation_measurement(
     folder::String,
@@ -740,6 +861,50 @@ function _process_composite_correlation_measurement(
 
         # write the correlation stats to file
         index = write_correlation(fout, index, correlation_avg, correlation_std)
+    end
+
+    return nothing
+end
+
+# Use for LessIO mode
+# read in equal-time or integrated correlation function
+function read_correlation_measurement!(
+    binned_correlation::AbstractArray{Complex{T}},
+    folder::String,
+    correlation::String,
+    type::String,
+    space::String,
+    n_pair::Int,
+    pID::Int,
+    bin_intervals::Vector{UnitRange{Int}},
+    correlation_array::Vector{Dict}
+) where {T<:AbstractFloat}
+
+    @assert type in ("equal-time", "integrated")
+    @assert space in ("position", "momentum")
+
+    # number of bins
+    N_bins = length(bin_intervals)
+
+    # bin size
+    N_binsize = length(bin_intervals[1])
+
+    # initialize binned correlation to zero
+    fill!(binned_correlation, 0)
+
+    # iterate over bins
+    for bin in 1:N_bins
+
+        # get a specific correlation bin
+        correlation_bin = selectdim(binned_correlation, 1, bin)
+
+        # iterate over bin elements
+        for i in bin_intervals[bin]
+            
+            corr = correlation_array[i][correlation].correlations[n_pair]
+        
+            @. correlation_bin += corr / N_binsize
+        end
     end
 
     return nothing

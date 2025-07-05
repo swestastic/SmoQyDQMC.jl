@@ -22,19 +22,19 @@ Then we can pass these to `write_measurements!()`
 
 ``write_measurements!(LessIO; measurement_container = measurement_container, measurement_array = measurement_array, simulation_info = simulation_info, model_geometry = model_geometry, bin = bin, bin_size = bin_size, Δτ = Δτ,)``
 
-And finally pass `measurement_array` to `process_measurements()`
+And finally pass `LessIO` and `measurement_array` to `process_measurements()`
 
-`process_measurements(simulation_info.datafolder, N_bins, β, Lτ, model_geometry, measurement_array)`
+`process_measurements(LessIO, simulation_info.datafolder, N_bins, β, Lτ, model_geometry, measurement_array)`
 
-Currently, this supports global and local statistics, with functionality for correlations coming in the future. All LessIO related functions are called using Julia's multiple dispatch, so the original functions are left untouched. This means that all examples and typical SmoQy code should run as normal. Note that MPI is currently not compatible with this LessIO.
+Currently, this supports global and local statistics, and equal-time and integrated correlation functions. Time-displaced and composite correlation functions are not currently supported.
+All LessIO related functions are called using Julia's multiple dispatch, so the original functions are left untouched. This means that all examples and typical SmoQy code should run as normal. Note that MPI is currently not compatible with this LessIO.
 
 **Also, it is important to note that this is still in testing, so there is chance that results may be inaccurate in some cases.**
 **We have so far seen exact matching of results for U=0 runs of the Fermi-Hubbard model on the Kagome Lattice, however there are many other untested cases.**
 
 ### To Do
 
-- Add support for correlation functions in LessIO
-- Add support for `LessIO::Bool = false` to revert back to standard file-write method, instead of having to remove the arguments. Will just need to modify `write_measurements!()` and `process_measurements()` slightly for this.
+- Add support for composite and time-displaced correlation functions with LessIO
 - Remove excess directory creation for LessIO mode, saving all .CSV files into `simulation_info.datafolder` rather than subdirectories
 - Add MPI support eventually?
 - Benchmarking runtimes for LessIO vs. standard method

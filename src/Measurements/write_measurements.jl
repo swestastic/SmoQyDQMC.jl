@@ -59,22 +59,22 @@ function write_measurements!(LessIO::Bool;
 
         # normalize all measurements by the bin size
         normalize_measurements!(measurement_container::NamedTuple, bin_size::Int)
+        
+        # backup measurements to measurement_array
         measurement_array[bin] = deepcopy(measurement_container)
 
-        # write global measurements to file
+        # identify global_measurements
         global_measurements = measurement_container.global_measurements::Dict{String, Complex{E}}
-        # JLD2.save(joinpath(datafolder, "global", fn), global_measurements)
 
         # reset global measurements to zero
         for measurement in keys(global_measurements)
             global_measurements[measurement] = zero(Complex{E})
         end
 
-        # write local measurements to file
+        # identify local_measurements
         local_measurements = measurement_container.local_measurements::Dict{String, Vector{Complex{E}}}
-        # JLD2.save(joinpath(datafolder, "local", fn), local_measurements)
 
-        # reset global measurements to zero
+        # reset local measurements to zero
         for measurement in keys(local_measurements)
             fill!(local_measurements[measurement], zero(Complex{E}))
         end
@@ -91,9 +91,6 @@ function write_measurements!(LessIO::Bool;
             correlation_container = equaltime_correlations[correlation]
             pairs = correlation_container.id_pairs::Vector{NTuple{2,Int}}
             correlations = correlation_container.correlations::Vector{Array{Complex{E}, D}}
-
-            # write position space equal-time correlation to file
-            save(joinpath(datafolder, "equal-time", correlation, "position", fn), correlation_container)
 
             # fourier transform correlations to momentum space
             for i in eachindex(correlations)
@@ -115,9 +112,6 @@ function write_measurements!(LessIO::Bool;
                 fourier_transform!(correlations[i], a, b, unit_cell, lattice)
             end
 
-            # write momentum space equal-time correlation to file
-            save(joinpath(datafolder, "equal-time", correlation, "momentum", fn), correlation_container)
-
             # set the correlations to zero
             reset!(correlation_container)
         end
@@ -128,12 +122,6 @@ function write_measurements!(LessIO::Bool;
 
             # get the correlation container
             correlation_container = equaltime_composite_correlations[name]
-
-            # write position space equal-time correlation to file
-            save(joinpath(datafolder, "equal-time", name, "position", fn), correlation_container, momentum = false)
-
-            # write momentum space equal-time correlation to file
-            save(joinpath(datafolder, "equal-time", name, "momentum", fn), correlation_container, momentum = true)
 
             # set the correlations to zero
             reset!(correlation_container)
@@ -163,9 +151,6 @@ function write_measurements!(LessIO::Bool;
                 # calculate susceptibility
                 susceptibility!(susceptibilities[i], correlations[i], Δτ, D+1)
             end
-
-            # write position space susceptibility to file
-            save(joinpath(datafolder, "integrated", correlation, "position", fn), susceptibility_container)
 
             # fourier transform correlations to momentum space
             for i in eachindex(correlations)
@@ -198,8 +183,7 @@ function write_measurements!(LessIO::Bool;
                 susceptibility!(susceptibilities[i], correlations[i], Δτ, D+1)
             end
 
-            # write momentum space susceptibility to file
-            save(joinpath(datafolder, "integrated", correlation, "momentum", fn), susceptibility_container)
+            measurement_array[bin].integrated_correlations[correlation] = deepcopy(susceptibility_container)
 
             # set the correlations to zero
             reset!(correlation_container)
