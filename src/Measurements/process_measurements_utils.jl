@@ -56,6 +56,32 @@ function load_model_summary(folder::String)
     return β, Δτ, Lτ, model_geometry
 end
 
+# Use for LessIO Mode
+# get the number of MPI walkers that were simulated
+function get_num_walkers(LessIO::Bool, folder::String)
+    if !LessIO
+        return get_num_walkers(folder)
+    end
+    # initialize the number of processes to zero
+    N_process = 0
+    if isdir(joinpath(folder,"global"))
+        # iterate over files in global measurement directory
+        for file in readdir(joinpath(folder,"global"))
+
+            # split file name
+            atoms = split(file, ('.','-','_'))
+
+            # get process id
+            pID = parse(Int, atoms[4])
+
+            # record the max process id
+            N_process = max(N_process, pID + 1)
+        end
+    end
+
+    return N_process
+end
+
 
 # get the number of MPI walkers that were simulated
 function get_num_walkers(folder::String)

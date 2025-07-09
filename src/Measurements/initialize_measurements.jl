@@ -532,12 +532,101 @@ function initialize_measurement_directories(
     return nothing
 end
 
+#Use for LessIO mode
+function initialize_measurement_directories(LessIO;
+    # Keyword Arguments
+    simulation_info::SimulationInfo,
+    measurement_container::NamedTuple
+)
+    if !LessIO
+        return initialize_measurement_directories(
+            simulation_info,
+            measurement_container
+        )
+    end
+    initialize_measurement_directories(LessIO,simulation_info, measurement_container)
+    return nothing
+end
+
 function initialize_measurement_directories(;
     # Keyword Arguments
     simulation_info::SimulationInfo,
     measurement_container::NamedTuple
 )
     initialize_measurement_directories(simulation_info, measurement_container)
+    return nothing
+end
+
+# Use for LessIO Mode
+function initialize_measurement_directories(
+    # Arguments
+    LessIO::Bool,
+    simulation_info::SimulationInfo,
+    measurement_container::NamedTuple
+)
+
+    (; datafolder, resuming, pID) = simulation_info
+    (; time_displaced_correlations,
+       equaltime_correlations,
+       integrated_correlations,
+       time_displaced_composite_correlations,
+       equaltime_composite_correlations,
+       integrated_composite_correlations
+    ) = measurement_container
+    if !LessIO
+        return initialize_measurement_directories(
+            simulation_info,
+            measurement_container
+        )
+    end
+    # only initialize folders if pID = 0
+    if iszero(pID) && !resuming
+
+        # make time-displaced correlation directory
+        time_displaced_directory = joinpath(datafolder, "time-displaced")
+        mknewdir(time_displaced_directory)
+
+        # iterate over integrated correlation measurements
+        for correlation in keys(integrated_correlations)
+
+            # check if also a time-displaced measurement should also be made
+            if time_displaced_correlations[correlation].time_displaced
+
+                # make directory for time-displaced correlation measurement
+                time_displaced_correlation_directory = joinpath(time_displaced_directory, correlation)
+                mknewdir(time_displaced_correlation_directory)
+
+                # create sub-directories for position and momentum space time-displaced correlation measurements
+                mknewdir(joinpath(time_displaced_correlation_directory, "position"))
+                mknewdir(joinpath(time_displaced_correlation_directory, "momentum"))
+            end
+        end
+
+        # iterate over integrated composite correlation measurements
+        for name in keys(integrated_composite_correlations)
+
+            # make directory for integrated correlation measurement
+            integrated_correlation_directory = joinpath(integrated_directory, name)
+            mknewdir(integrated_correlation_directory)
+
+            # create sub-directories for position and momentum space time-displaced correlation measurements
+            mknewdir(joinpath(integrated_correlation_directory, "position"))
+            mknewdir(joinpath(integrated_correlation_directory, "momentum"))
+
+            # check if also a time-displaced measurement should also be made
+            if time_displaced_composite_correlations[name].time_displaced
+
+                # make directory for time-displaced correlation measurement
+                time_displaced_correlation_directory = joinpath(time_displaced_directory, name)
+                mknewdir(time_displaced_correlation_directory)
+
+                # create sub-directories for position and momentum space time-displaced correlation measurements
+                mknewdir(joinpath(time_displaced_correlation_directory, "position"))
+                mknewdir(joinpath(time_displaced_correlation_directory, "momentum"))
+            end
+        end
+    end
+
     return nothing
 end
 

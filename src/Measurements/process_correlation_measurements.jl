@@ -606,7 +606,8 @@ function _process_correlation_measurement(
 ) where {D, T<:AbstractFloat, N}
 
     # get the folder the stats will be written to
-    write_folder = joinpath(folder, type, correlation)
+    # write_folder = joinpath(folder, type, correlation)
+    write_folder = folder
 
     # # get the read folders
     # read_folder = joinpath(write_folder, space)

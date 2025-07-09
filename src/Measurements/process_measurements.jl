@@ -52,9 +52,10 @@ function process_measurements(
 
     # set the walkers to iterate over
     if isempty(pIDs)
+        # pIDs = [0] # bad fix, but it works. Only using here to save all files to the main directory instead of creating a folder tree. get_num_walkers() requires 'global' folder to exist
 
         # get the number of MPI walkers
-        N_walkers = get_num_walkers(folder)
+        N_walkers = get_num_walkers(LessIO, folder)
         if N_walkers == 0 # since we no longer have bin files, assume there is only one walker
             pIDs = [0]
         else
