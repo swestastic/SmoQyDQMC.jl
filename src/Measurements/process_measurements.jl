@@ -40,7 +40,9 @@ function process_measurements(
     measurement_array::Vector{NamedTuple},
     pIDs::Union{Vector{Int},Int} = Int[];
     # KEYWORD ARGUMENTS
-    time_displaced::Bool = false
+    time_displaced::Bool = false,
+    spaces::Vector{String} = ["position", "momentum"]
+    
 )
     if !LessIO
         return process_measurements(folder, 
@@ -75,9 +77,9 @@ function process_measurements(
 
     # process correlation measurement
     if time_displaced
-        _process_correlation_measurements(folder, N_bins, pIDs, ["equal-time", "time-displaced", "integrated"], ["position", "momentum"], Lτ, model_geometry, measurement_array)
+        _process_correlation_measurements(folder, N_bins, pIDs, ["equal-time", "time-displaced", "integrated"], spaces, Lτ, model_geometry, measurement_array)
     else
-        _process_correlation_measurements(folder, N_bins, pIDs, ["equal-time", "integrated"], ["position", "momentum"], Lτ, model_geometry, measurement_array)
+        _process_correlation_measurements(folder, N_bins, pIDs, ["equal-time", "integrated"], spaces, Lτ, model_geometry, measurement_array)
     end
 
     return nothing

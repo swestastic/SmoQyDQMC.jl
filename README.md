@@ -128,7 +128,7 @@ Modifying your existing code to work with LessIO is pretty straightforward and e
             Δτ = Δτ
             )
 
-- Generate output files `global_stats.csv`, `local_stats.csv`, and any others that are called for. This modified function places all of them in `simulation_info.datafolder` rather than in subdirectories.
+- Generate output files `global_stats.csv`, `local_stats.csv`, and any others that are called for. This modified function places all of them in `simulation_info.datafolder` rather than in subdirectories. Using the additional kwarg `spaces` lets us choose if we want to output files for position space, momentum space, or both. 
 
   -     process_measurements(LessIO, 
             simulation_info.datafolder, 
@@ -136,7 +136,9 @@ Modifying your existing code to work with LessIO is pretty straightforward and e
             β, 
             Lτ, 
             model_geometry, 
-            measurement_array
+            measurement_array;
+            time_displaced=false,
+            spaces=["position"]
             )
 
 ### Current Limitations/Caveats
