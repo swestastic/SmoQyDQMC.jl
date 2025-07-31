@@ -198,6 +198,198 @@ function make_measurements!(
     return (logdetGup, sgndetGup, logdetGdn, sgndetGdn, δG, δθ)
 end
 
+# use for ExtraObservables
+function make_measurements!(ExtraObservables::Bool,
+    measurement_container::NamedTuple,
+    logdetGup::E, sgndetGup::T, Gup::AbstractMatrix{T},
+    Gup_ττ::AbstractMatrix{T}, Gup_τ0::AbstractMatrix{T}, Gup_0τ::AbstractMatrix{T},
+    logdetGdn::E, sgndetGdn::T, Gdn::AbstractMatrix{T},
+    Gdn_ττ::AbstractMatrix{T}, Gdn_τ0::AbstractMatrix{T}, Gdn_0τ::AbstractMatrix{T};
+    # Keyword Arguments Start Here
+    fermion_path_integral_up::FermionPathIntegral{T,E},
+    fermion_path_integral_dn::FermionPathIntegral{T,E},
+    fermion_greens_calculator_up::FermionGreensCalculator{T,E},
+    fermion_greens_calculator_dn::FermionGreensCalculator{T,E},
+    Bup::Vector{P}, Bdn::Vector{P},
+    model_geometry::ModelGeometry{D,E,N},
+    tight_binding_parameters::Union{Nothing, TightBindingParameters{T,E}} = nothing,
+    tight_binding_parameters_up::Union{Nothing, TightBindingParameters{T,E}} = nothing,
+    tight_binding_parameters_dn::Union{Nothing, TightBindingParameters{T,E}} = nothing,
+    coupling_parameters::Tuple,
+    δG::E, δθ::E, δG_max::E = 1e-6
+) where {T<:Number, E<:AbstractFloat, D, N, P<:AbstractPropagator{T,E}}
+    if !ExtraObservables
+        return make_measurements!(
+            measurement_container,
+            logdetGup, sgndetGup, Gup,
+            Gup_ττ, Gup_τ0, Gup_0τ,
+            logdetGdn, sgndetGdn, Gdn,
+            Gdn_ττ, Gdn_τ0, Gdn_0τ;
+            fermion_path_integral_up = fermion_path_integral_up,
+            fermion_path_integral_dn = fermion_path_integral_dn,
+            fermion_greens_calculator_up = fermion_greens_calculator_up,
+            fermion_greens_calculator_dn = fermion_greens_calculator_dn,
+            Bup = Bup, Bdn = Bdn,
+            model_geometry = model_geometry,
+            tight_binding_parameters = tight_binding_parameters,
+            tight_binding_parameters_up = tight_binding_parameters_up,
+            tight_binding_parameters_dn = tight_binding_parameters_dn,
+            coupling_parameters = coupling_parameters,
+            δG = δG, δθ = δθ, δG_max = δG_max
+        )
+    end
+    # extract temporary storage vectors
+    (; 
+        time_displaced_correlations,
+        equaltime_correlations,
+        equaltime_composite_correlations,
+        time_displaced_composite_correlations,
+        a, a′, a″
+    ) = measurement_container
+    tmp = selectdim(a, ndims(a), 1)
+
+    # assign spin-up and spin-down tight-binding parameters if necessary
+    if !isnothing(tight_binding_parameters)
+        tight_binding_parameters_up = tight_binding_parameters
+        tight_binding_parameters_dn = tight_binding_parameters
+    end
+
+    # calculate sign
+    sgn = sign(inv(sgndetGup) * inv(sgndetGdn))
+
+    # make global measurements
+    global_measurements = measurement_container.global_measurements
+    make_global_measurements!(LessIO,
+        global_measurements,
+        tight_binding_parameters_up,
+        tight_binding_parameters_dn,
+        coupling_parameters,
+        Gup, logdetGup, sgndetGup,
+        Gdn, logdetGdn, sgndetGdn,
+        fermion_path_integral_up,
+        coupling_parameters[1] # assume first element is hubbard_parameters
+    )
+
+    # make local measurements
+    local_measurements = measurement_container.local_measurements
+    make_local_measurements!(
+        local_measurements,
+        Gup, Gdn, sgn,
+        model_geometry,
+        tight_binding_parameters_up, tight_binding_parameters_dn,
+        fermion_path_integral_up, fermion_path_integral_dn,
+        coupling_parameters
+    )
+
+    # initialize green's function matrices G(τ,0), G(0,τ) and G(τ,τ) based on G(0,0)
+    initialize_unequaltime_greens!(Gup_τ0, Gup_0τ, Gup_ττ, Gup)
+    initialize_unequaltime_greens!(Gdn_τ0, Gdn_0τ, Gdn_ττ, Gdn)
+
+    # make equal-time correlation measurements
+    make_equaltime_measurements!(
+        equaltime_correlations, sgn,
+        Gup, Gup_ττ, Gup_τ0, Gup_0τ,
+        Gdn, Gdn_ττ, Gdn_τ0, Gdn_0τ,
+        model_geometry, tight_binding_parameters_up, tight_binding_parameters_dn,
+        fermion_path_integral_up, fermion_path_integral_dn
+    )
+
+    # make equal-time composite correlation measurements
+    make_equaltime_composite_measurements!(
+        equaltime_composite_correlations, sgn,
+        Gup, Gup_ττ, Gup_τ0, Gup_0τ,
+        Gdn, Gdn_ττ, Gdn_τ0, Gdn_0τ,
+        model_geometry, tight_binding_parameters_up, tight_binding_parameters_dn,
+        fermion_path_integral_up, fermion_path_integral_dn,
+        tmp
+    )
+
+    # if there are time-displaced measurements to make
+    if length(time_displaced_correlations) > 0 || length(time_displaced_composite_correlations) > 0
+
+        # make time-displaced correlation measuresurements for τ = l⋅Δτ = 0
+        make_time_displaced_measurements!(
+            time_displaced_correlations, 0, sgn,
+            Gup, Gup_ττ, Gup_τ0, Gup_0τ, Gdn, Gdn_ττ, Gdn_τ0, Gdn_0τ,
+            model_geometry, tight_binding_parameters_up, tight_binding_parameters_dn,
+            fermion_path_integral_up, fermion_path_integral_dn
+        )
+
+        # make time-displaced composite correlation measuresurements for τ = l⋅Δτ = 0
+        make_time_displaced_composite_measurements!(
+            time_displaced_composite_correlations, 0, sgn,
+            Gup, Gup_ττ, Gup_τ0, Gup_0τ, Gdn, Gdn_ττ, Gdn_τ0, Gdn_0τ,
+            model_geometry, tight_binding_parameters_up, tight_binding_parameters_dn,
+            fermion_path_integral_up, fermion_path_integral_dn,
+            tmp
+        )
+
+        # iterate over imaginary time slice
+        for l in fermion_greens_calculator_up
+
+            # Propagate Green's function matrices to current imaginary time slice
+            propagate_unequaltime_greens!(Gup_τ0, Gup_0τ, Gup_ττ, fermion_greens_calculator_up, Bup)
+            propagate_unequaltime_greens!(Gdn_τ0, Gdn_0τ, Gdn_ττ, fermion_greens_calculator_dn, Bdn)
+
+            # make time-displaced correlation measuresurements for τ = l⋅Δτ
+            make_time_displaced_measurements!(
+                time_displaced_correlations, l, sgn,
+                Gup, Gup_ττ, Gup_τ0, Gup_0τ, Gdn, Gdn_ττ, Gdn_τ0, Gdn_0τ,
+                model_geometry, tight_binding_parameters_up, tight_binding_parameters_dn,
+                fermion_path_integral_up, fermion_path_integral_dn
+            )
+
+            # make time-displaced correlation measuresurements for τ = l⋅Δτ
+            make_time_displaced_composite_measurements!(
+                time_displaced_composite_correlations, l, sgn,
+                Gup, Gup_ττ, Gup_τ0, Gup_0τ, Gdn, Gdn_ττ, Gdn_τ0, Gdn_0τ,
+                model_geometry, tight_binding_parameters_up, tight_binding_parameters_dn,
+                fermion_path_integral_up, fermion_path_integral_dn,
+                tmp
+            )
+
+            # Periodically re-calculate the Green's function matrix for numerical stability.
+            logdetGup, sgndetGup, δGup, δθup = stabilize_unequaltime_greens!(
+                Gup_τ0, Gup_0τ, Gup_ττ, logdetGup, sgndetGup,
+                fermion_greens_calculator_up, Bup, update_B̄=false
+            )
+            logdetGdn, sgndetGdn, δGdn, δθdn = stabilize_unequaltime_greens!(
+                Gdn_τ0, Gdn_0τ, Gdn_ττ, logdetGdn, sgndetGdn,
+                fermion_greens_calculator_dn, Bdn, update_B̄=false
+            )
+
+            # record the max errors
+            δG = maximum((δG, δGup, δGdn))
+            δθ = maximum(abs, (δθ, δθup, δθdn))
+
+            # Keep up and down spin Green's functions synchronized as iterating over imaginary time.
+            iterate(fermion_greens_calculator_dn, fermion_greens_calculator_up.forward)
+        end
+    end
+
+    # measure equal-time phonon greens function
+    if haskey(equaltime_correlations, "phonon_greens")
+
+        # get the electron-phonon parameters
+        indx = findfirst(i -> typeof(i) <: ElectronPhononParameters, coupling_parameters)
+
+        # measure phonon green's function
+        measure_equaltime_phonon_greens!(equaltime_correlations["phonon_greens"], coupling_parameters[indx], model_geometry, sgn, a, a′, a″)
+    end
+
+    # measure time-displaced phonon greens function
+    if haskey(time_displaced_correlations, "phonon_greens")
+
+        # get the electron-phonon parameters
+        indx = findfirst(i -> typeof(i) <: ElectronPhononParameters, coupling_parameters)
+
+        # measure phonon green's function
+        measure_time_displaced_phonon_greens!(time_displaced_correlations["phonon_greens"], coupling_parameters[indx], model_geometry, sgn, a, a′, a″)
+    end
+
+    return (logdetGup, sgndetGup, logdetGdn, sgndetGdn, δG, δθ)
+end
+
 @doc raw"""
     make_measurements!(
         measurement_container::NamedTuple,
@@ -446,6 +638,105 @@ function make_global_measurements!(
 
     # measure chemical potential
     global_measurements["chemical_potential"] += tight_binding_parameters_up.μ
+
+    return nothing
+end
+
+# use for LessIO
+# NOTE that this is pretty inefficient as it re-calculates some all of the energies
+# however I think that it's worth it to have it be much more simplistic
+function make_global_measurements!(LessIO::Bool,
+    global_measurements::Dict{String, Complex{E}},
+    tight_binding_parameters_up::TightBindingParameters{T,E},
+    tight_binding_parameters_dn::TightBindingParameters{T,E},
+    coupling_parameters::Tuple,
+    Gup::AbstractMatrix{T}, logdetGup::T, sgndetGup::T,
+    Gdn::AbstractMatrix{T}, logdetGdn::T, sgndetGdn::T,
+    fermion_path_integral_up::FermionPathIntegral{T,E},
+    hubbard_parameters::HubbardParameters{E}
+) where {T<:Number, E<:AbstractFloat}
+
+    # number of orbitals in lattice
+    N = size(Gup, 1)
+
+    # measure the sign
+    sgn = sign(inv(sgndetGup) * inv(sgndetGdn))
+    global_measurements["sgn"] += sgn
+
+    # measure the spin resolved sign
+    global_measurements["sgndetGup"] += sgndetGup
+    global_measurements["sgndetGdn"] += sgndetGdn
+
+    # measure log|det(G)|
+    global_measurements["logdetGup"] += logdetGup
+    global_measurements["logdetGdn"] += logdetGdn
+
+    # measure fermionic action
+    Sf = logdetGup + logdetGdn
+    global_measurements["action_fermionic"] += Sf
+
+    # measure bosonic action
+    Sb = zero(E)
+    for i in eachindex(coupling_parameters)
+        Sb += bosonic_action(coupling_parameters[i])
+    end
+    global_measurements["action_bosonic"] += Sb
+
+    # measure total action
+    S = Sb + Sf
+    global_measurements["action_total"] += S
+
+    # measure average density
+    nup = measure_n(Gup)
+    ndn = measure_n(Gdn)
+    global_measurements["density_up"] += sgn * nup
+    global_measurements["density_dn"] += sgn * ndn
+    global_measurements["density"] += sgn * (nup + ndn)
+
+    # measure double occupancy
+    global_measurements["double_occ"] += sgn * measure_double_occ(Gup, Gdn)
+
+    # measure ⟨N²⟩
+    global_measurements["Nsqrd"] += sgn * measure_Nsqrd(Gup, Gdn)
+
+    # measure chemical potential
+    global_measurements["chemical_potential"] += tight_binding_parameters_up.μ
+
+    # measure on-site energy 
+    norbital = tight_binding_parameters_up.norbital
+    onsite = 0
+    for n in 1:norbital
+        eup = sgn * measure_onsite_energy(tight_binding_parameters_up, Gup, n)
+        edn = sgn * measure_onsite_energy(tight_binding_parameters_dn, Gdn, n)
+        e = eup + edn
+        onsite += e
+    end
+    onsite /= norbital
+
+    # measure hubbard energy
+    hubbard = 0
+    for orbital in 1:norbital
+        hubbard += sgn * measure_hubbard_energy(hubbard_parameters, Gup, Gdn, orbital)
+    end
+    hubbard /= norbital
+
+    # measure hopping energy
+    nhopping = length(tight_binding_parameters_up.bond_ids)
+    hopping = 0
+    if nhopping > 0
+        for hopping_id in 1:nhopping
+            hup = sgn * measure_hopping_energy(tight_binding_parameters_up, fermion_path_integral_up, Gup, hopping_id)
+            hdn = sgn * measure_hopping_energy(tight_binding_parameters_dn, fermion_path_integral_up, Gdn, hopping_id)
+            h = hup + hdn
+            hopping += h
+        end
+    end
+    hopping /= norbital # normalize this by number of orbitals rather than by number of hoppings
+
+    total_energy = hopping + onsite + hubbard
+    total_energy_sqrd = total_energy^2
+    global_measurements["total_energy"] += total_energy
+    global_measurements["total_energy_sqrd"] += total_energy_sqrd
 
     return nothing
 end
