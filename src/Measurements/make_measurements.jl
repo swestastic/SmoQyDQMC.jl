@@ -198,8 +198,8 @@ function make_measurements!(
     return (logdetGup, sgndetGup, logdetGdn, sgndetGdn, δG, δθ)
 end
 
-# use for ExtraObservables
-function make_measurements!(ExtraObservables::Bool,
+# use for LessIO
+function make_measurements!(LessIO::Bool,
     measurement_container::NamedTuple,
     logdetGup::E, sgndetGup::T, Gup::AbstractMatrix{T},
     Gup_ττ::AbstractMatrix{T}, Gup_τ0::AbstractMatrix{T}, Gup_0τ::AbstractMatrix{T},
@@ -218,7 +218,7 @@ function make_measurements!(ExtraObservables::Bool,
     coupling_parameters::Tuple,
     δG::E, δθ::E, δG_max::E = 1e-6
 ) where {T<:Number, E<:AbstractFloat, D, N, P<:AbstractPropagator{T,E}}
-    if !ExtraObservables
+    if !LessIO
         return make_measurements!(
             measurement_container,
             logdetGup, sgndetGup, Gup,
