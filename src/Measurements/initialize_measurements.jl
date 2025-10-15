@@ -138,6 +138,13 @@ function initialize_measurements!(
     global_measurements["total_energy"] = zero(Complex{E})
     global_measurements["total_energy_sqrd"] = zero(Complex{E})
 
+    # initialize total magnetization as global measurement
+    global_measurements["total_magnetization"] = zero(Complex{E})
+    global_measurements["total_magnetization_sqrd"] = zero(Complex{E})
+
+    # initiailize total susceptibility as global measurement
+    global_measurements["magnetic_susceptibility"] = zero(Complex{E})
+
     # initialize on-site energy measurement
     local_measurements["onsite_energy"]    = zeros(Complex{E}, norbital)
     local_measurements["onsite_energy_up"] = zeros(Complex{E}, norbital)

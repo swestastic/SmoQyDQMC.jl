@@ -411,6 +411,13 @@ function analyze_global_measurements(
     global_measurements_avg["compressibility"] = κ
     global_measurements_std["compressibility"] = Δκ
 
+    # calculate the magnetic susceptibility
+    M  = binned_global_measurements["total_magnetization"]
+    M² = binned_global_measurements["total_magnetization_sqrd"]
+    χ_M, Δχ_M = jackknife((M̄, M̄², S̄) -> (β/N_sites)*(M̄²/S̄ - (M̄/S̄)^2), M, M², S)
+    global_measurements_avg["magnetic_susceptibility"] = χ_M
+    global_measurements_std["magnetic_susceptibility"] = Δχ_M
+
     return global_measurements_avg, global_measurements_std
 end
 

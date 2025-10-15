@@ -96,6 +96,9 @@ We define each global measurement below.
 - `Nsqrd`: Expectation value for total electron number squared ``\langle N^2 \rangle``, where ``\hat{N} = \sum_{\sigma,\mathbf{i},\nu} \hat{n}_{\sigma, \mathbf{i}, \nu}``.
 - `chemical_potential`: The measured chemical potential ``\mu``.
 - `compressibility`: The measured compressibility ``\kappa = \frac{d \langle n \rangle}{d \mu} = \frac{\beta}{\mathcal{N}}\left( \langle N^2 \rangle - \langle N \rangle^2 \right)``.
+- `total_magnetization`: The total z-component of magnetization ``M_z = \sum_{\mathbf{i},\nu} \langle n_{\uparrow,\mathbf{i},\nu} - n_{\downarrow,\mathbf{i},\nu} \rangle``.
+- `total_magnetization_sqrd`: The square of total magnetization ``M_z^2``.
+- `magnetic_susceptibility`: The magnetic susceptibility ``\chi_M = \frac{\beta}{\mathcal{N}}\left( \langle M^2 \rangle - \langle M \rangle^2 \right)``.
 
 ## Local Measurement
 

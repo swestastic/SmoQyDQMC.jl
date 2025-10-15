@@ -738,6 +738,17 @@ function make_global_measurements!(LessIO::Bool,
     global_measurements["total_energy"] += total_energy
     global_measurements["total_energy_sqrd"] += total_energy_sqrd
 
+    # measure total magnetization M_z = sum_i <n_i_up - n_i_dn>
+    # M_z = sum_i [(1 - G_ii_up) - (1 - G_ii_dn)] = sum_i [G_ii_dn - G_ii_up]
+    total_magnetization = zero(E)
+    N = size(Gup, 1)
+    for i in 1:N
+        total_magnetization += real(Gdn[i,i] - Gup[i,i])
+    end
+    total_magnetization_sqrd = total_magnetization^2
+    global_measurements["total_magnetization"] += sgn * total_magnetization
+    global_measurements["total_magnetization_sqrd"] += sgn * total_magnetization_sqrd
+
     return nothing
 end
 

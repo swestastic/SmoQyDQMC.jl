@@ -160,7 +160,11 @@ const LOCAL_MEASUREMENTS = Base.ImmutableDict(
         "density_up",
         "density_dn",
         "double_occ",
-        "Nsqrd"
+        "Nsqrd",
+        "total_energy",
+        "total_energy_sqrd",
+        "total_magnetization",
+        "total_magnetization_sqrd"
     )
 
 List of all the global measurements that are made.
@@ -178,5 +182,9 @@ const GLOBAL_MEASUREMENTS = (
     "density_up",
     "density_dn",
     "double_occ",
-    "Nsqrd"
+    "Nsqrd",
+    "total_energy",
+    "total_energy_sqrd",
+    "total_magnetization",
+    "total_magnetization_sqrd"
 )
