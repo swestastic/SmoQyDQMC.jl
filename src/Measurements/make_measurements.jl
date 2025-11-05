@@ -738,17 +738,34 @@ function make_global_measurements!(LessIO::Bool,
     global_measurements["total_energy"] += total_energy
     global_measurements["total_energy_sqrd"] += total_energy_sqrd
 
-    # measure total magnetization M_z = sum_i <n_i_up - n_i_dn>
-    # M_z = sum_i [(1 - G_ii_up) - (1 - G_ii_dn)] = sum_i [G_ii_dn - G_ii_up]
+    # Measure M_z and M_z²
     total_magnetization = zero(E)
+    total_magnetization_sqrd = zero(E)
     N = size(Gup, 1)
+
     for i in 1:N
-        total_magnetization += real(Gdn[i,i] - Gup[i,i])
+        Siz = real(Gdn[i,i] - Gup[i,i]) / 2  # S^z_i = (n_dn - n_up)/2
+        total_magnetization += Siz
     end
-    total_magnetization_sqrd = total_magnetization^2
+
+    # For M_z², we need ⟨∑ᵢⱼ Sᵢᶻ Sⱼᶻ⟩
+    for i in 1:N, j in 1:N
+        # ⟨Sᵢᶻ Sⱼᶻ⟩ = ⟨(nᵢ↑ - nᵢ↓)(nⱼ↑ - nⱼ↓)⟩/4
+        # Using Wick's theorem:
+        if i == j
+            # Diagonal: ⟨(nᵢ↑ - nᵢ↓)²⟩/4 = ⟨nᵢ↑ + nᵢ↓ - 2nᵢ↑nᵢ↓⟩/4
+            term = real(Gdn[i,i] + Gup[i,i] - 2*Gdn[i,i]*Gup[i,i]) / 4
+        else
+            # Off-diagonal: ⟨nᵢ↑nⱼ↑⟩ + ⟨nᵢ↓nⱼ↓⟩ - ⟨nᵢ↑nⱼ↓⟩ - ⟨nᵢ↓nⱼ↑⟩
+            term = real(Gup[i,i]*Gup[j,j] - Gup[i,j]*Gup[j,i] +
+                        Gdn[i,i]*Gdn[j,j] - Gdn[i,j]*Gdn[j,i] -
+                        Gup[i,i]*Gdn[j,j] - Gdn[i,i]*Gup[j,j]) / 4
+        end
+        total_magnetization_sqrd += term
+    end
+
     global_measurements["total_magnetization"] += sgn * total_magnetization
     global_measurements["total_magnetization_sqrd"] += sgn * total_magnetization_sqrd
-
     return nothing
 end
 

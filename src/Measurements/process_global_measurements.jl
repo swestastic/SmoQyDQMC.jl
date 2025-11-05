@@ -411,12 +411,30 @@ function analyze_global_measurements(
     global_measurements_avg["compressibility"] = κ
     global_measurements_std["compressibility"] = Δκ
 
-    # calculate the magnetic susceptibility
+    # calculate on-site summed magnetization squared using identity
+    # sum_i <(n_{i↑} - n_{i↓})^2> = N_sites * ( <n> - 2*<n_↑ n_↓> )
+    if haskey(binned_global_measurements, "density") && haskey(binned_global_measurements, "double_occ")
+        d  = binned_global_measurements["double_occ"]
+        MZ2, ΔMZ2 = jackknife((n̄, d̄, S̄) -> N_sites * (n̄/S̄ - 2*(d̄/S̄)), n, d, S)
+        global_measurements_avg["M_Z_sqrd"] = MZ2
+        global_measurements_std["M_Z_sqrd"] = ΔMZ2
+    end
+
+    # calculate the magnetic susceptibility using total magnetization variance
     M  = binned_global_measurements["total_magnetization"]
     M² = binned_global_measurements["total_magnetization_sqrd"]
     χ_M, Δχ_M = jackknife((M̄, M̄², S̄) -> (β/N_sites)*(M̄²/S̄ - (M̄/S̄)^2), M, M², S)
     global_measurements_avg["magnetic_susceptibility"] = χ_M
     global_measurements_std["magnetic_susceptibility"] = Δχ_M
+
+    # calculate alternative magnetic susceptibility using on-site moments
+    # χ_M_alt = (β/N) * sum_i <m_i^2> where m_i = n_{i↑} - n_{i↓}
+    # This can be more stable when cross-correlations are small
+    if haskey(binned_global_measurements, "density") && haskey(binned_global_measurements, "double_occ")
+        χ_M_alt, Δχ_M_alt = jackknife((n̄, d̄, S̄) -> (β/N_sites) * (n̄/S̄ - 2*(d̄/S̄)), n, d, S)
+        global_measurements_avg["magnetic_susceptibility_onsite"] = χ_M_alt
+        global_measurements_std["magnetic_susceptibility_onsite"] = Δχ_M_alt
+    end
 
     return global_measurements_avg, global_measurements_std
 end
